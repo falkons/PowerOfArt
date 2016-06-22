@@ -1,0 +1,89 @@
+using System;
+using System.Configuration;
+using System.Data;
+using System.Globalization;
+using TurneImportDAC;
+using XTend.Import;
+
+namespace ImportLyubosvit
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // Подпишимся на событие импорта
+            ImportMain.OnImportStart += DoImport;
+            // запустим импорт с максимальным количеством потоков
+            ImportMain.Start(int.Parse(ConfigurationManager.AppSettings["MaxThreads"]), int.Parse(ConfigurationManager.AppSettings["TimerInterval"]));
+        }
+
+        /// <summary>
+        /// Событие запуска импорта(одного запроса к базе)
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="args"></param>
+        private static void DoImport(object sender, EventArgs args)
+        {
+            string url = ConfigurationManager.AppSettings["Url"];
+            Console.WriteLine(DateTime.Now.ToString(CultureInfo.InvariantCulture) + " - TourGetListGetLiveRequest request; CurrentThread:" + sender);
+
+            DataTable dt = ImportDAC.TourGetListGetLiveRequest(int.Parse(ConfigurationManager.AppSettings["CompanyId"]));
+            Console.WriteLine(DateTime.Now.ToString() + " - receive " + dt.Rows.Count + " rows");
+            foreach (DataRow row in dt.Rows)
+            {
+                int requestId = row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.RequestId);
+                DateTime departureDateFrom = row.GetValue<DateTime>(ImportDAC.Fields.spTourGetListGetLiveRequest.DepartureDateFrom);
+                DateTime departureDateTo = row.GetValue<DateTime>(ImportDAC.Fields.spTourGetListGetLiveRequest.DepartureDateTo);
+                int durationFrom = row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.DurationQtyDayFrom);
+                int durationTo = row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.DurationQtyDayTo);
+                int cityFrom = row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.DeparturePointId);
+                int countryId = row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.CountryId);
+                short peopleQty = row.GetValue<short>(ImportDAC.Fields.spTourGetListGetLiveRequest.AdultQty);
+
+                string currencyId = row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.CurrencyId);
+                string resortIds = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.ResortIds) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.ResortIds) ? row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.ResortIds) : string.Empty;
+                string hotelsIds = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelIds) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelIds) ? row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelIds) : string.Empty;
+                string hotelClassIds = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelClassIds) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelClassIds) ? row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.HotelClassIds) : string.Empty;
+                string boardIds = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.BoardIds) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.BoardIds) ? row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.BoardIds) : string.Empty;
+                short childrenQty = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildQty) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildQty) ? row.GetValue<short>(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildQty) : (short)0;
+                double priceFrom = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceFrom) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceFrom) ? row.GetValue<double>(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceFrom) : 0;
+                double priceTo = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceTo) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceTo) ? row.GetValue<double>(ImportDAC.Fields.spTourGetListGetLiveRequest.PriceTo) : 0;
+                string childrenAges = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildAges) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildAges) ? row.GetValue<string>(ImportDAC.Fields.spTourGetListGetLiveRequest.ChildAges) : string.Empty;
+                int? packageId = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.PackageId) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.PackageId) ? row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.PackageId) : (int?)null;
+                int? checkTransportSeats = row.HasValue(ImportDAC.Fields.spTourGetListGetLiveRequest.CheckTransportSeats) && !row.IsNull(ImportDAC.Fields.spTourGetListGetLiveRequest.CheckTransportSeats) ? row.GetValue<int>(ImportDAC.Fields.spTourGetListGetLiveRequest.CheckTransportSeats) : (int?)null;
+
+                LyubosvitImport helper = new LyubosvitImport(url, requestId, ConfigurationManager.AppSettings["EnableLog"] != null &&
+                                                                   bool.Parse(
+                                                                       ConfigurationManager.AppSettings["EnableLog"]));
+
+                helper.AddStaticParam("CHECKIN_BEG", departureDateFrom.ToString("yyyyMMdd"));
+                helper.AddStaticParam("CHECKIN_END", departureDateTo.ToString("yyyyMMdd"));
+                helper.AddStaticParam("NIGHTS_FROM", durationFrom);
+                helper.AddStaticParam("NIGHTS_TILL", durationTo);
+                helper.AddStaticParam("TOWNFROMINC", cityFrom);
+                helper.AddStaticParam("STATEINC", countryId);
+                helper.AddStaticParam("TOWNTO", resortIds);
+                helper.AddStaticParam("MEAL", boardIds);
+                helper.AddStaticParam("STARS", hotelClassIds);
+
+                if (!string.IsNullOrEmpty(hotelsIds))
+                    helper.AddStaticParam("HOTELS", hotelsIds);
+
+                helper.AddStaticParam("ADULT", peopleQty);
+                helper.AddStaticParam("CHILD", childrenQty);
+                if (childrenQty > 0)
+                    helper.AddStaticParam("AGES", childrenAges);
+
+                helper.AddStaticParam("PRICE_MIN", priceFrom.ToString());
+                helper.AddStaticParam("PRICE_MAX", priceTo.ToString());
+                helper.AddStaticParam("CURRENCY", currencyId);
+                if (packageId.HasValue)
+                    helper.AddStaticParam("PACKET", packageId);
+                if (checkTransportSeats.HasValue)
+                    helper.AddStaticParam("FREIGHT", checkTransportSeats);
+
+                helper.Load("PRICEPAGE", "1");
+            }
+        }
+    }
+}
